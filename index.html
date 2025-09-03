@@ -199,6 +199,61 @@
             margin-left: 4px;
         }
 
+        .metric-change {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .change-indicator {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .change-indicator.positive {
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+        }
+
+        .change-indicator.positive::before {
+            content: "↗";
+            margin-right: 4px;
+            font-size: 12px;
+        }
+
+        .change-indicator.negative {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+
+        .change-indicator.negative::before {
+            content: "↘";
+            margin-right: 4px;
+            font-size: 12px;
+        }
+
+        .change-indicator.neutral {
+            background: rgba(107, 114, 128, 0.1);
+            color: #6b7280;
+        }
+
+        .change-indicator.neutral::before {
+            content: "→";
+            margin-right: 4px;
+            font-size: 12px;
+        }
+
+        .change-text {
+            font-size: 12px;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
         .loading-metrics {
             opacity: 0.6;
         }
@@ -239,16 +294,28 @@
                 <div class="metric-card loading-metrics">
                     <div class="metric-label">Total Appeals</div>
                     <div class="metric-value" id="totalAppeals">---</div>
+                    <div class="metric-change" id="totalAppealsChange">
+                        <span class="change-indicator">---</span>
+                        <span class="change-text">vs prev period</span>
+                    </div>
                 </div>
                 
                 <div class="metric-card loading-metrics">
                     <div class="metric-label">Avg Appeals per Day</div>
                     <div class="metric-value" id="avgAppealsPerDay">---<span class="metric-unit">per day</span></div>
+                    <div class="metric-change" id="avgAppealsChange">
+                        <span class="change-indicator">---</span>
+                        <span class="change-text">vs prev period</span>
+                    </div>
                 </div>
                 
                 <div class="metric-card loading-metrics">
                     <div class="metric-label">LLM Acceptance Rate</div>
                     <div class="metric-value" id="llmAcceptanceRate">---%</div>
+                    <div class="metric-change" id="llmAcceptanceChange">
+                        <span class="change-indicator">---</span>
+                        <span class="change-text">vs prev period</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -270,6 +337,7 @@
     <script>
         let isAuthenticated = false;
         let currentData = null;
+        let previousData = null;
 
         // DOM elements
         const authButton = document.getElementById('authButton');
@@ -281,6 +349,9 @@
         const totalAppeals = document.getElementById('totalAppeals');
         const avgAppealsPerDay = document.getElementById('avgAppealsPerDay');
         const llmAcceptanceRate = document.getElementById('llmAcceptanceRate');
+        const totalAppealsChange = document.getElementById('totalAppealsChange');
+        const avgAppealsChange = document.getElementById('avgAppealsChange');
+        const llmAcceptanceChange = document.getElementById('llmAcceptanceChange');
 
         function showStatus(element, message, type = 'info') {
             element.className = `status ${type}`;
@@ -333,6 +404,84 @@
             const metricCards = document.querySelectorAll('.metric-card');
             metricCards.forEach(card => card.classList.remove('loading-metrics'));
             console.log('Removed loading state from', metricCards.length, 'metric cards');
+            
+            // Update percentage changes
+            updatePercentageChanges(data, days);
+        }
+
+        function updatePercentageChanges(currentData, days) {
+            if (!previousData || previousData.length === 0) {
+                // No previous data, show no change indicators
+                updateChangeIndicator(totalAppealsChange, null);
+                updateChangeIndicator(avgAppealsChange, null);
+                updateChangeIndicator(llmAcceptanceChange, null);
+                return;
+            }
+
+            // Calculate current metrics
+            const currentTotal = currentData.length;
+            const currentAvg = Math.round(currentTotal / days);
+            const currentLlmDecisions = currentData.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
+            let currentAcceptanceRate = 0;
+            if (currentLlmDecisions.length > 0) {
+                const currentAccepted = currentLlmDecisions.filter(row => {
+                    const decision = row.llm_decision.toLowerCase();
+                    return decision.includes('accept') || decision.includes('approve') || 
+                           decision.includes('grant') || decision.includes('upheld') ||
+                           (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'));
+                }).length;
+                currentAcceptanceRate = (currentAccepted / currentLlmDecisions.length) * 100;
+            }
+
+            // Calculate previous metrics
+            const prevTotal = previousData.length;
+            const prevAvg = Math.round(prevTotal / days);
+            const prevLlmDecisions = previousData.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
+            let prevAcceptanceRate = 0;
+            if (prevLlmDecisions.length > 0) {
+                const prevAccepted = prevLlmDecisions.filter(row => {
+                    const decision = row.llm_decision.toLowerCase();
+                    return decision.includes('accept') || decision.includes('approve') || 
+                           decision.includes('grant') || decision.includes('upheld') ||
+                           (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'));
+                }).length;
+                prevAcceptanceRate = (prevAccepted / prevLlmDecisions.length) * 100;
+            }
+
+            // Calculate percentage changes
+            const totalChange = prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal) * 100 : 0;
+            const avgChange = prevAvg > 0 ? ((currentAvg - prevAvg) / prevAvg) * 100 : 0;
+            const acceptanceChange = prevAcceptanceRate > 0 ? currentAcceptanceRate - prevAcceptanceRate : 0;
+
+            // Update change indicators
+            updateChangeIndicator(totalAppealsChange, totalChange);
+            updateChangeIndicator(avgAppealsChange, avgChange);
+            updateChangeIndicator(llmAcceptanceChange, acceptanceChange, true); // true for percentage points
+        }
+
+        function updateChangeIndicator(element, changePercent, isPercentagePoints = false) {
+            const indicator = element.querySelector('.change-indicator');
+            
+            if (changePercent === null || changePercent === undefined) {
+                indicator.textContent = '---';
+                indicator.className = 'change-indicator';
+                return;
+            }
+
+            const absChange = Math.abs(changePercent);
+            const formattedChange = isPercentagePoints 
+                ? `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(1)}pp`
+                : `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(1)}%`;
+            
+            indicator.textContent = formattedChange;
+            
+            if (changePercent > 0) {
+                indicator.className = 'change-indicator positive';
+            } else if (changePercent < 0) {
+                indicator.className = 'change-indicator negative';
+            } else {
+                indicator.className = 'change-indicator neutral';
+            }
         }
 
         // Authentication flow
@@ -458,11 +607,50 @@
                     ORDER BY t.appealed_at, t.termination_reason, t.shop_id
                 `;
 
-                const result = await quick.dw.querySync(fraudAppealsQuery, null, {
-                    timeoutMs: 60000
-                });
+                // Query for previous period (same number of days, but shifted back)
+                const previousFraudAppealsQuery = `
+                    SELECT
+                        termination_reason,
+                        t.shop_id,
+                        DATE(t.appealed_at) as appeal_date,
+                        JSON_EXTRACT_SCALAR(ta.content, '$.fraud_termination_appeal_assessment.assessment') AS llm_decision
 
-                currentData = result.results;
+                    FROM \`shopify-dw.mart_cti_data.shop_terminations__wide\` t
+                    LEFT JOIN \`shopify-dw.risk.trust_platform_disputes\` d
+                        ON d.trust_platform_ticket_id = t.actionable_id
+                        AND LOWER(t.actionable_type) = 'ticket'
+                        AND d.type = 'appeal'
+
+                    LEFT JOIN \`shopify-dw.base.base__trust_platform_shops\` s
+                        ON t.shop_id = SAFE_CAST(s.external_id AS INT64)
+                    LEFT JOIN \`sdp-prd-cti-data.base.base__trust_platform_disputes\` d2
+                        ON d2.subject_id = s.trust_platform_shop_id
+                        AND d2.ticket_id = t.actionable_id
+                        AND d2.dispute_type = 'appeal'
+                    LEFT JOIN \`sdp-prd-cti-data.base.base__trust_platform_sensitive_trust_assessments\` ta
+                        ON ta.assessable_id = d2.trust_platform_dispute_id
+                        AND ta.assessable_type = 'Dispute'
+                        AND DATE(ta.longboat_extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
+
+                    WHERE DATE(t.appealed_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days * 2} DAY)
+                        AND DATE(t.appealed_at) < DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)
+                        AND (t.termination_reason_category = 'fraud')
+                        AND t.was_appealed = true
+
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY t.shop_id ORDER BY ta.created_at DESC NULLS LAST) = 1
+
+                    ORDER BY t.appealed_at, t.termination_reason, t.shop_id
+                `;
+
+                // Execute both queries in parallel
+                const [currentResult, previousResult] = await Promise.all([
+                    quick.dw.querySync(fraudAppealsQuery, null, { timeoutMs: 60000 }),
+                    quick.dw.querySync(previousFraudAppealsQuery, null, { timeoutMs: 60000 })
+                ]);
+
+                currentData = currentResult.results;
+                previousData = previousResult.results;
+                console.log('Previous period data:', previousData?.length, 'records');
                 
                 // Update metrics
                 updateMetrics(currentData, days);
@@ -475,7 +663,8 @@
                 dashboardData.innerHTML = `
                     <div style="text-align: center; padding: 20px;">
                         <h2>Dashboard Data Loaded</h2>
-                        <p>Found <strong>${result.rowCount}</strong> fraud appeals in the last ${days} days</p>
+                        <p>Found <strong>${currentResult.rowCount}</strong> fraud appeals in the last ${days} days</p>
+                        <p>Previous period: <strong>${previousResult.rowCount}</strong> appeals</p>
                         <p>Ready to build visualizations with this data!</p>
                     </div>
                 `;

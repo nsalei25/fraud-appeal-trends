@@ -727,6 +727,13 @@
             </div>
         </div>
 
+        <div class="chart-section" id="countryTrendsSection" style="display: none;">
+            <h2 class="chart-title">Appeal Trends by Country (5+ Daily Average)</h2>
+            <div class="chart-container">
+                <canvas id="countryTrendsChart"></canvas>
+            </div>
+        </div>
+
         <div class="dashboard-content">
             <div id="authStatus" class="status hidden"></div>
             
@@ -768,9 +775,11 @@
         const sortSelect = document.getElementById('sortSelect');
         const searchInput = document.getElementById('searchInput');
         const rulesContainer = document.getElementById('rulesContainer');
+        const countryTrendsSection = document.getElementById('countryTrendsSection');
         
         let appealTrendsChart = null;
         let llmFeedbackChart = null;
+        let countryTrendsChart = null;
         let rulesData = [];
 
         function showStatus(element, message, type = 'info') {
@@ -836,6 +845,9 @@
             
             // Create the rules analysis section
             createRulesAnalysis(data, days, terminationCountsData);
+            
+            // Create the country trends chart
+            createCountryTrendsChart(data, days);
         }
 
         function createAppealTrendsChart(data, days) {
@@ -1254,6 +1266,239 @@
             });
 
             console.log('LLM feedback chart created with', Object.keys(dateData).length, 'data points');
+        }
+
+        function createCountryTrendsChart(data, days) {
+            if (!data || data.length === 0) return;
+
+            console.log('Creating country trends chart with', data.length, 'records');
+            
+            // Show country trends section
+            countryTrendsSection.style.display = 'block';
+            
+            // Process data by date and country
+            const countryDateData = {};
+            
+            data.forEach(row => {
+                let dateKey;
+                const rawDate = row.appeal_date;
+                
+                // Handle date formatting
+                if (rawDate) {
+                    if (typeof rawDate === 'object' && rawDate.value) {
+                        dateKey = rawDate.value;
+                    } else if (typeof rawDate === 'string') {
+                        dateKey = rawDate.split('T')[0];
+                    } else {
+                        dateKey = String(rawDate).split('T')[0];
+                    }
+                } else {
+                    dateKey = 'Unknown Date';
+                }
+                
+                // Get country code and map to country name
+                const countryCode = row.shop_country_code || 'Unknown';
+                const countryName = getCountryName(countryCode);
+                
+                if (!countryDateData[dateKey]) {
+                    countryDateData[dateKey] = {};
+                }
+                
+                if (!countryDateData[dateKey][countryName]) {
+                    countryDateData[dateKey][countryName] = 0;
+                }
+                
+                countryDateData[dateKey][countryName]++;
+            });
+            
+            // Calculate daily averages per country
+            const countryAverages = {};
+            const sortedDates = Object.keys(countryDateData).sort();
+            
+            // Get all unique countries
+            const allCountries = new Set();
+            Object.values(countryDateData).forEach(dateData => {
+                Object.keys(dateData).forEach(country => allCountries.add(country));
+            });
+            
+            // Calculate average daily appeals for each country
+            allCountries.forEach(country => {
+                let totalAppeals = 0;
+                let daysWithData = 0;
+                
+                sortedDates.forEach(date => {
+                    if (countryDateData[date][country]) {
+                        totalAppeals += countryDateData[date][country];
+                        daysWithData++;
+                    }
+                });
+                
+                countryAverages[country] = daysWithData > 0 ? totalAppeals / daysWithData : 0;
+            });
+            
+            // Filter countries with 5+ daily average
+            const qualifyingCountries = Object.keys(countryAverages)
+                .filter(country => countryAverages[country] >= 5)
+                .sort((a, b) => countryAverages[b] - countryAverages[a]);
+            
+            console.log('Qualifying countries (5+ daily avg):', qualifyingCountries.map(c => 
+                `${c}: ${countryAverages[c].toFixed(1)}`
+            ));
+            
+            // Create datasets for qualifying countries
+            const countryColors = {
+                'United States': '#3b82f6',
+                'Germany': '#ef4444', 
+                'United Kingdom': '#10b981',
+                'France': '#f59e0b',
+                'Canada': '#8b5cf6',
+                'Australia': '#06b6d4',
+                'Netherlands': '#84cc16',
+                'Italy': '#f97316'
+            };
+            
+            const datasets = qualifyingCountries.map((country, index) => {
+                const color = countryColors[country] || `hsl(${index * 137.5 % 360}, 70%, 50%)`;
+                
+                return {
+                    label: country,
+                    data: sortedDates.map(date => countryDateData[date][country] || 0),
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: color,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2
+                };
+            });
+            
+            // Prepare labels
+            const labels = sortedDates.map(date => {
+                try {
+                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const d = new Date(date + 'T00:00:00');
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        }
+                    }
+                    return date;
+                } catch (e) {
+                    return date;
+                }
+            });
+            
+            // Destroy existing chart
+            if (countryTrendsChart) {
+                countryTrendsChart.destroy();
+            }
+            
+            // Create new chart
+            const ctx = document.getElementById('countryTrendsChart').getContext('2d');
+            countryTrendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            align: 'center',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 15,
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#1a202c',
+                            bodyColor: '#4a5568',
+                            borderColor: 'rgba(0, 0, 0, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Appeals'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 4,
+                            hoverRadius: 6
+                        },
+                        line: {
+                            borderWidth: 2
+                        }
+                    }
+                }
+            });
+            
+            console.log('Country trends chart created with', qualifyingCountries.length, 'qualifying countries');
+        }
+
+        function getCountryName(countryCode) {
+            const countryMap = {
+                'US': 'United States',
+                'DE': 'Germany',
+                'GB': 'United Kingdom',
+                'FR': 'France',
+                'CA': 'Canada',
+                'AU': 'Australia',
+                'NL': 'Netherlands',
+                'IT': 'Italy',
+                'ES': 'Spain',
+                'JP': 'Japan',
+                'BR': 'Brazil',
+                'IN': 'India',
+                'MX': 'Mexico',
+                'SE': 'Sweden',
+                'NO': 'Norway',
+                'DK': 'Denmark',
+                'FI': 'Finland',
+                'BE': 'Belgium',
+                'CH': 'Switzerland',
+                'AT': 'Austria'
+            };
+            
+            return countryMap[countryCode] || countryCode || 'Unknown';
         }
 
         function createRulesAnalysis(data, days, terminationCountsData = []) {

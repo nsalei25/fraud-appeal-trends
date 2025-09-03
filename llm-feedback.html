@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Feedback Trends - Fraud Appeals Analytics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="/client/quick.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #1a202c;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .chart-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .time-selector {
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(107, 114, 128, 0.1);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .time-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: #6b7280;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .time-btn.active {
+            background: white;
+            color: #1a202c;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .time-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            margin-top: 1rem;
+        }
+
+        .loading-chart {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .metric-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a202c;
+            line-height: 1.2;
+        }
+
+        .metric-unit {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #4a5568;
+            margin-left: 4px;
+        }
+
+        .auth-prompt {
+            text-align: center;
+            padding: 3rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .auth-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .auth-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .chart-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .time-selector {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LLM Feedback Trends</h1>
+            <p>Track LLM decision patterns over time for fraud appeal assessments</p>
+        </div>
+
+        <div id="authPrompt" class="auth-prompt" style="display: none;">
+            <h2>BigQuery Access Required</h2>
+            <p>This dashboard needs permission to query fraud appeal data from BigQuery.</p>
+            <button class="auth-btn" onclick="requestAuth()">Grant Access</button>
+        </div>
+
+        <div id="dashboardContent" style="display: none;">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Total LLM Decisions</div>
+                    <div class="metric-value" id="totalDecisions">-</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Acceptance Rate</div>
+                    <div class="metric-value" id="acceptanceRate">-%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Decisions per Day</div>
+                    <div class="metric-value" id="avgDecisionsPerDay">-<span class="metric-unit">per day</span></div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">LLM Feedback Trends Over Time</div>
+                    <div class="time-selector">
+                        <button class="time-btn active" data-days="7">7 days</button>
+                        <button class="time-btn" data-days="30">30 days</button>
+                        <button class="time-btn" data-days="60">60 days</button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <div class="loading-chart" id="loadingChart">Loading chart data...</div>
+                    <canvas id="llmFeedbackChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDays = 7;
+        let llmFeedbackChart = null;
+
+        // DOM elements
+        const authPrompt = document.getElementById('authPrompt');
+        const dashboardContent = document.getElementById('dashboardContent');
+        const loadingChart = document.getElementById('loadingChart');
+        const totalDecisions = document.getElementById('totalDecisions');
+        const acceptanceRate = document.getElementById('acceptanceRate');
+        const avgDecisionsPerDay = document.getElementById('avgDecisionsPerDay');
+
+        // Time selector handlers
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelector('.time-btn.active').classList.remove('active');
+                btn.classList.add('active');
+                currentDays = parseInt(btn.dataset.days);
+                loadData();
+            });
+        });
+
+        async function requestAuth() {
+            try {
+                const authResult = await quick.auth.requestScopes([
+                    'https://www.googleapis.com/auth/bigquery'
+                ]);
+                
+                if (authResult.hasRequiredScopes) {
+                    authPrompt.style.display = 'none';
+                    dashboardContent.style.display = 'block';
+                    loadData();
+                } else {
+                    alert('BigQuery access is required to view the dashboard.');
+                }
+            } catch (error) {
+                console.error('Auth error:', error);
+                alert('Failed to authenticate. Please try again.');
+            }
+        }
+
+        async function loadData() {
+            console.log(`Loading LLM feedback data for ${currentDays} days...`);
+            
+            // Show loading state
+            if (llmFeedbackChart) {
+                llmFeedbackChart.destroy();
+                llmFeedbackChart = null;
+            }
+            document.getElementById('llmFeedbackChart').style.display = 'none';
+            loadingChart.style.display = 'flex';
+
+            try {
+                const sql = `
+                    WITH fraud_appeals AS (
+                        SELECT DISTINCT
+                            sa.shop_id,
+                            sa.created_at as appeal_date,
+                            sa.operation_type,
+                            sa.operation_id
+                        FROM \`shopify-tiers.core_data_shopify_derived.shop_appeal_termination\` sa
+                        WHERE DATE(sa.created_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${currentDays} DAY)
+                        AND sa.created_at IS NOT NULL
+                        ORDER BY sa.created_at DESC
+                    ),
+                    llm_assessments AS (
+                        SELECT 
+                            fra.shop_id,
+                            fra.appeal_date,
+                            fra.operation_type,
+                            fra.operation_id,
+                            llm.decision as llm_decision
+                        FROM fraud_appeals fra
+                        LEFT JOIN \`shopify-tiers.core_data_shopify_derived.llm_shop_appeal_assessment\` llm
+                            ON fra.shop_id = llm.shop_id 
+                            AND fra.operation_id = llm.operation_id
+                        WHERE llm.decision IS NOT NULL
+                        ORDER BY fra.appeal_date DESC
+                    )
+                    SELECT *
+                    FROM llm_assessments
+                `;
+
+                console.log('Executing SQL query...');
+                const result = await quick.dw.querySync(sql);
+                console.log('Query completed. Results:', result.rowCount, 'rows');
+                
+                if (result.results && result.results.length > 0) {
+                    updateMetrics(result.results);
+                    createLLMFeedbackChart(result.results);
+                } else {
+                    console.log('No LLM feedback data found');
+                    totalDecisions.textContent = '0';
+                    acceptanceRate.textContent = '0%';
+                    avgDecisionsPerDay.innerHTML = '0<span class="metric-unit">per day</span>';
+                    loadingChart.textContent = 'No LLM feedback data available';
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                loadingChart.textContent = 'Error loading data: ' + error.message;
+            }
+        }
+
+        function updateMetrics(data) {
+            console.log('Updating metrics with', data.length, 'LLM decisions');
+            
+            const total = data.length;
+            totalDecisions.textContent = total.toLocaleString();
+            
+            const avgPerDay = Math.round(total / currentDays);
+            avgDecisionsPerDay.innerHTML = `${avgPerDay}<span class="metric-unit">per day</span>`;
+            
+            // Calculate acceptance rate
+            let acceptedCount = 0;
+            data.forEach(row => {
+                const decision = row.llm_decision ? row.llm_decision.toLowerCase() : '';
+                if (decision.includes('accept') || decision.includes('approve') || 
+                    decision.includes('grant') || decision.includes('upheld') ||
+                    (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'))) {
+                    acceptedCount++;
+                }
+            });
+            
+            const acceptanceRateValue = total > 0 ? Math.round((acceptedCount / total) * 100) : 0;
+            acceptanceRate.textContent = `${acceptanceRateValue}%`;
+            
+            console.log('Metrics updated:', { total, avgPerDay, acceptanceRateValue });
+        }
+
+        function createLLMFeedbackChart(data) {
+            console.log('Creating LLM feedback chart with', data.length, 'records');
+            
+            // Hide loading, show chart
+            loadingChart.style.display = 'none';
+            document.getElementById('llmFeedbackChart').style.display = 'block';
+            
+            // Process data by date
+            const dateData = {};
+            
+            data.forEach(row => {
+                let dateKey;
+                const rawDate = row.appeal_date;
+                
+                if (rawDate) {
+                    if (typeof rawDate === 'object' && rawDate.value) {
+                        dateKey = rawDate.value;
+                    } else if (typeof rawDate === 'string') {
+                        dateKey = rawDate.split('T')[0]; // Extract date part
+                    } else {
+                        dateKey = String(rawDate).split('T')[0];
+                    }
+                } else {
+                    dateKey = 'Unknown Date';
+                }
+
+                if (!dateData[dateKey]) {
+                    dateData[dateKey] = {
+                        total: 0,
+                        accepted: 0,
+                        rejected: 0
+                    };
+                }
+
+                dateData[dateKey].total++;
+                
+                const decision = row.llm_decision ? row.llm_decision.toLowerCase() : '';
+                if (decision.includes('accept') || decision.includes('approve') || 
+                    decision.includes('grant') || decision.includes('upheld') ||
+                    (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'))) {
+                    dateData[dateKey].accepted++;
+                } else {
+                    dateData[dateKey].rejected++;
+                }
+            });
+
+            console.log('Processed date data:', dateData);
+            
+            // Prepare chart data
+            const sortedDates = Object.keys(dateData).sort();
+            const labels = sortedDates.map(date => {
+                try {
+                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const d = new Date(date + 'T00:00:00');
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        }
+                    }
+                    return date;
+                } catch (e) {
+                    return date;
+                }
+            });
+
+            // Destroy existing chart
+            if (llmFeedbackChart) {
+                llmFeedbackChart.destroy();
+            }
+
+            // Create new chart
+            const ctx = document.getElementById('llmFeedbackChart').getContext('2d');
+            llmFeedbackChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Accepted',
+                            data: sortedDates.map(date => dateData[date].accepted),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#10b981',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        },
+                        {
+                            label: 'Rejected',
+                            data: sortedDates.map(date => dateData[date].rejected),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#ef4444',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        },
+                        {
+                            label: 'Total Appeals',
+                            data: sortedDates.map(date => dateData[date].total),
+                            borderColor: '#6b7280',
+                            backgroundColor: 'transparent',
+                            fill: false,
+                            tension: 0.4,
+                            borderDash: [5, 5],
+                            pointRadius: 4,
+                            pointBackgroundColor: '#6b7280',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#1a202c',
+                            bodyColor: '#4a5568',
+                            borderColor: 'rgba(0, 0, 0, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            border: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#6b7280',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                drawBorder: false
+                            },
+                            border: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#6b7280',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+
+            console.log('LLM feedback chart created successfully');
+        }
+
+        // Initialize
+        window.addEventListener('load', async () => {
+            console.log('Page loaded, checking authentication...');
+            
+            try {
+                // Check if already authenticated
+                const authResult = await quick.auth.requestScopes([
+                    'https://www.googleapis.com/auth/bigquery'
+                ]);
+                
+                if (authResult.hasRequiredScopes) {
+                    dashboardContent.style.display = 'block';
+                    loadData();
+                } else {
+                    authPrompt.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Initial auth check failed:', error);
+                authPrompt.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -208,6 +208,63 @@
             margin-bottom: 24px;
         }
 
+        .llm-chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .llm-chart-header .chart-title {
+            margin-bottom: 0;
+        }
+
+        .llm-action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .llm-action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .llm-accepted-btn {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .llm-accepted-btn:hover {
+            background: #bbf7d0;
+            transform: translateY(-1px);
+        }
+
+        .llm-rejected-btn {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .llm-rejected-btn:hover {
+            background: #fecaca;
+            transform: translateY(-1px);
+        }
+
+        .llm-action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .chart-container {
             position: relative;
             height: 400px;
@@ -704,7 +761,13 @@
         </div>
 
         <div class="chart-section" id="llmChartSection" style="display: none;">
-            <h2 class="chart-title">LLM Feedback Trends Over Time</h2>
+            <div class="llm-chart-header">
+                <h2 class="chart-title">LLM Feedback Trends Over Time</h2>
+                <div class="llm-action-buttons">
+                    <button id="viewAcceptedBtn" class="llm-action-btn llm-accepted-btn">View Accepted Appeals</button>
+                    <button id="viewRejectedBtn" class="llm-action-btn llm-rejected-btn">View Rejected Appeals</button>
+                </div>
+            </div>
             <div class="chart-container">
                 <canvas id="llmFeedbackChart"></canvas>
             </div>
@@ -813,11 +876,15 @@
         const searchInput = document.getElementById('searchInput');
         const rulesContainer = document.getElementById('rulesContainer');
         const countryTrendsSection = document.getElementById('countryTrendsSection');
+        const viewAcceptedBtn = document.getElementById('viewAcceptedBtn');
+        const viewRejectedBtn = document.getElementById('viewRejectedBtn');
         
         let appealTrendsChart = null;
         let llmFeedbackChart = null;
         let countryTrendsChart = null;
         let rulesData = [];
+        let acceptedAppealsIds = [];
+        let rejectedAppealsIds = [];
 
         function showStatus(element, message, type = 'info') {
             element.className = `status ${type}`;
@@ -1106,6 +1173,27 @@
             // Filter data to only include records with LLM decisions for accepted/rejected counts
             const llmData = data.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
             console.log('Found', llmData.length, 'records with LLM decisions out of', data.length, 'total appeals');
+            
+            // Collect accepted and rejected appeal IDs
+            acceptedAppealsIds = [];
+            rejectedAppealsIds = [];
+            
+            llmData.forEach(row => {
+                if (row.prioritized_appeal_ticket_id) {
+                    const decision = row.llm_decision.toLowerCase();
+                    const isAccepted = decision.includes('accept') || decision.includes('approve') || 
+                                     decision.includes('grant') || decision.includes('upheld') ||
+                                     (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'));
+                    
+                    if (isAccepted) {
+                        acceptedAppealsIds.push(row.prioritized_appeal_ticket_id);
+                    } else {
+                        rejectedAppealsIds.push(row.prioritized_appeal_ticket_id);
+                    }
+                }
+            });
+            
+            console.log('Collected', acceptedAppealsIds.length, 'accepted appeal IDs and', rejectedAppealsIds.length, 'rejected appeal IDs');
 
             // Process data by date - use ALL data for total appeals, LLM data for accepted/rejected
             const dateData = {};
@@ -1726,6 +1814,33 @@
         // Event listeners for rules section
         sortSelect.addEventListener('change', renderRules);
         searchInput.addEventListener('input', renderRules);
+
+        // Event listeners for LLM feedback buttons
+        viewAcceptedBtn.addEventListener('click', function() {
+            if (acceptedAppealsIds.length > 0) {
+                const url = generateTrustPlatformUrl(acceptedAppealsIds);
+                if (url) {
+                    window.open(url, '_blank');
+                } else {
+                    alert('No accepted appeals found to display');
+                }
+            } else {
+                alert('No accepted appeals found for the current time period');
+            }
+        });
+
+        viewRejectedBtn.addEventListener('click', function() {
+            if (rejectedAppealsIds.length > 0) {
+                const url = generateTrustPlatformUrl(rejectedAppealsIds);
+                if (url) {
+                    window.open(url, '_blank');
+                } else {
+                    alert('No rejected appeals found to display');
+                }
+            } else {
+                alert('No rejected appeals found for the current time period');
+            }
+        });
 
         function updatePercentageChanges(currentData, days) {
             if (!previousData || previousData.length === 0) {

@@ -350,6 +350,13 @@
             </div>
         </div>
 
+        <div class="chart-section" id="llmChartSection" style="display: none;">
+            <h2 class="chart-title">LLM Feedback Trends Over Time</h2>
+            <div class="chart-container">
+                <canvas id="llmFeedbackChart"></canvas>
+            </div>
+        </div>
+
         <div class="dashboard-content">
             <div id="authStatus" class="status hidden"></div>
             
@@ -383,8 +390,10 @@
         const avgAppealsChange = document.getElementById('avgAppealsChange');
         const llmAcceptanceChange = document.getElementById('llmAcceptanceChange');
         const chartSection = document.getElementById('chartSection');
+        const llmChartSection = document.getElementById('llmChartSection');
         
         let appealTrendsChart = null;
+        let llmFeedbackChart = null;
 
         function showStatus(element, message, type = 'info') {
             element.className = `status ${type}`;
@@ -443,6 +452,9 @@
             
             // Create the appeal trends chart
             createAppealTrendsChart(data, days);
+            
+            // Create the LLM feedback chart
+            createLLMFeedbackChart(data, days);
         }
 
         function createAppealTrendsChart(data, days) {
@@ -651,6 +663,200 @@
             });
 
             console.log('Appeal trends chart created with', Object.keys(dateData).length, 'data points');
+        }
+
+        function createLLMFeedbackChart(data, days) {
+            if (!data || data.length === 0) return;
+
+            console.log('Creating LLM feedback chart with', data.length, 'records');
+            
+            // Show LLM chart section
+            llmChartSection.style.display = 'block';
+            
+            // Filter data to only include records with LLM decisions
+            const llmData = data.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
+            console.log('Found', llmData.length, 'records with LLM decisions');
+            
+            if (llmData.length === 0) {
+                console.log('No LLM decisions found, hiding LLM chart');
+                llmChartSection.style.display = 'none';
+                return;
+            }
+
+            // Process data by date
+            const dateData = {};
+            
+            llmData.forEach(row => {
+                let dateKey;
+                const rawDate = row.appeal_date;
+                
+                if (rawDate) {
+                    if (typeof rawDate === 'object' && rawDate.value) {
+                        dateKey = rawDate.value;
+                    } else if (typeof rawDate === 'string') {
+                        dateKey = rawDate.split('T')[0];
+                    } else {
+                        dateKey = String(rawDate).split('T')[0];
+                    }
+                } else {
+                    dateKey = 'Unknown Date';
+                }
+
+                if (!dateData[dateKey]) {
+                    dateData[dateKey] = {
+                        total: 0,
+                        accepted: 0,
+                        rejected: 0
+                    };
+                }
+
+                dateData[dateKey].total++;
+                
+                const decision = row.llm_decision.toLowerCase();
+                if (decision.includes('accept') || decision.includes('approve') || 
+                    decision.includes('grant') || decision.includes('upheld') ||
+                    (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'))) {
+                    dateData[dateKey].accepted++;
+                } else {
+                    dateData[dateKey].rejected++;
+                }
+            });
+
+            console.log('Processed LLM date data:', dateData);
+            
+            // Prepare chart data
+            const sortedDates = Object.keys(dateData).sort();
+            const labels = sortedDates.map(date => {
+                try {
+                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const d = new Date(date + 'T00:00:00');
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        }
+                    }
+                    return date;
+                } catch (e) {
+                    return date;
+                }
+            });
+
+            // Destroy existing chart
+            if (llmFeedbackChart) {
+                llmFeedbackChart.destroy();
+            }
+
+            // Create new chart
+            const ctx = document.getElementById('llmFeedbackChart').getContext('2d');
+            llmFeedbackChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Accepted',
+                            data: sortedDates.map(date => dateData[date].accepted),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#10b981',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        },
+                        {
+                            label: 'Rejected',
+                            data: sortedDates.map(date => dateData[date].rejected),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#ef4444',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        },
+                        {
+                            label: 'Total Appeals',
+                            data: sortedDates.map(date => dateData[date].total),
+                            borderColor: '#6b7280',
+                            backgroundColor: 'transparent',
+                            fill: false,
+                            tension: 0.4,
+                            borderDash: [5, 5],
+                            pointRadius: 4,
+                            pointBackgroundColor: '#6b7280',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#1a202c',
+                            bodyColor: '#4a5568',
+                            borderColor: 'rgba(0, 0, 0, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 4,
+                            hoverRadius: 6
+                        },
+                        line: {
+                            borderWidth: 2
+                        }
+                    }
+                }
+            });
+
+            console.log('LLM feedback chart created with', Object.keys(dateData).length, 'data points');
         }
 
         function updatePercentageChanges(currentData, days) {

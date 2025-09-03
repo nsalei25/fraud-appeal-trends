@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud Team Appeal Trends</title>
+    <script src="/client/quick.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin: 0;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .time-range-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .time-range-label {
+            font-weight: 600;
+            color: #4a5568;
+            font-size: 16px;
+        }
+
+        .time-range-selector {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            font-size: 16px;
+            color: #2d3748;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 150px;
+        }
+
+        .time-range-selector:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .time-range-selector:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .auth-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .auth-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+        }
+
+        .auth-button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .dashboard-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            margin: 16px 0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #f0fff4;
+            color: #22543d;
+            border-left: 4px solid #38a169;
+        }
+
+        .status.error {
+            background: #fff5f5;
+            color: #742a2a;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .status.info {
+            background: #ebf8ff;
+            color: #2a4365;
+            border-left: 4px solid #3182ce;
+        }
+
+        .loading-message {
+            text-align: center;
+            padding: 40px;
+            color: #4a5568;
+            font-size: 18px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Fraud Team Appeal Trends</h1>
+            <div class="header-controls">
+                <div class="time-range-group">
+                    <label class="time-range-label" for="timeRange">Time Range:</label>
+                    <select class="time-range-selector" id="timeRange">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="60">Last 60 days</option>
+                    </select>
+                </div>
+                <button id="authButton" class="auth-button">Connect to BigQuery</button>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <div id="authStatus" class="status hidden"></div>
+            
+            <div id="loadingMessage" class="loading-message">
+                Please connect to BigQuery to load dashboard data
+            </div>
+
+            <div id="dashboardData" class="hidden">
+                <!-- Dashboard content will be inserted here -->
+                <p>Dashboard loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isAuthenticated = false;
+        let currentData = null;
+
+        // DOM elements
+        const authButton = document.getElementById('authButton');
+        const authStatus = document.getElementById('authStatus');
+        const timeRange = document.getElementById('timeRange');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const dashboardData = document.getElementById('dashboardData');
+
+        function showStatus(element, message, type = 'info') {
+            element.className = `status ${type}`;
+            element.textContent = message;
+            element.classList.remove('hidden');
+        }
+
+        // Authentication flow
+        authButton.addEventListener('click', async () => {
+            try {
+                authButton.disabled = true;
+                showStatus(authStatus, 'Requesting BigQuery permissions...', 'info');
+
+                // This will pop up a banner to authorize BigQuery
+                const authResult = await quick.auth.requestScopes([
+                    "https://www.googleapis.com/auth/bigquery"
+                ]);
+
+                if (!authResult.hasRequiredScopes) {
+                    throw new Error("BigQuery permissions are required");
+                }
+
+                isAuthenticated = true;
+                showStatus(authStatus, 'Successfully connected to BigQuery!', 'success');
+                authButton.textContent = 'Connected ✓';
+                
+                // Load initial data
+                await loadDashboardData();
+
+            } catch (error) {
+                showStatus(authStatus, `Authentication failed: ${error.message}`, 'error');
+                authButton.disabled = false;
+            }
+        });
+
+        // Time range change handler
+        timeRange.addEventListener('change', async () => {
+            if (isAuthenticated) {
+                await loadDashboardData();
+            }
+        });
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                const days = parseInt(timeRange.value);
+                
+                loadingMessage.textContent = `Loading fraud appeals data for the last ${days} days...`;
+                loadingMessage.classList.remove('hidden');
+                dashboardData.classList.add('hidden');
+
+                const fraudAppealsQuery = `
+                    SELECT
+                        termination_reason,
+                        t.shop_id,
+                        DATE(t.appealed_at) as appeal_date,
+                        t.appeal_pathway,
+                        t.rule_name,
+                        t.shop_continent,
+                        t.shop_country_code,
+                        t.actionable_id as trust_platform_ticket_id,
+                        t.trust_platform_action_id,
+                        t.prioritized_appeal_ticket_id,
+
+                        -- Combined termination mechanic and operation type into single field
+                        CASE
+                            WHEN t.actionable_type = 'BulkShopProcess' THEN 'Bulk Shop Process'
+                            WHEN t.actionable_type = 'Ticket' AND t.termination_mechanic = 'bulk_review' THEN 'Multi-Shop Review'
+                            WHEN t.actionable_type = 'Ticket' AND t.termination_mechanic = 'automated_rule' THEN 'Automated Rule'
+                            WHEN t.actionable_type = 'Ticket' AND t.termination_mechanic = 'manual_review' THEN 'Manual Review'
+                            WHEN t.termination_mechanic = 'automated_rule' THEN 'Automated Rule'
+                            WHEN t.termination_mechanic = 'bulk_process' THEN 'Bulk Shop Process'
+                            WHEN t.termination_mechanic = 'bulk_review' THEN 'Multi-Shop Review'
+                            WHEN t.termination_mechanic = 'manual_review' THEN 'Manual Review'
+                            ELSE 'Other'
+                        END as operation_type,
+
+                        -- Action URL - fallback to shop URL when other URLs are null
+                        CASE
+                            WHEN t.actionable_type = 'BulkShopProcess'
+                            THEN CONCAT('https://trust-platform.shopify.io/bulk_shop_processes/', CAST(t.actionable_id AS STRING))
+                            WHEN t.actionable_type = 'Ticket' AND t.termination_mechanic = 'bulk_review'
+                            THEN CONCAT('https://trust-platform.shopify.io/shops/', CAST(t.shop_id AS STRING))
+                            WHEN t.actionable_id IS NOT NULL
+                            THEN CONCAT('https://trust-platform.shopify.io/tickets/', CAST(t.actionable_id AS STRING))
+                            ELSE CONCAT('https://trust-platform.shopify.io/shops/', CAST(t.shop_id AS STRING))
+                        END as action_url,
+
+                        CASE
+                            WHEN t.appeal_pathway = 'support_esc' THEN 'support_escalation'
+                            ELSE t.appeal_pathway
+                        END as appeals_pathway_detail,
+                        DATE_DIFF(DATE(t.appealed_at), DATE(t.terminated_at), DAY) as days_to_appeal,
+                        CASE
+                            WHEN t.rule_name LIKE '%Manual%' OR t.rule_name = 'Manual/Other' THEN 'Manual'
+                            ELSE 'Automated'
+                        END as termination_type,
+
+                        -- LLM Assessment columns
+                        JSON_EXTRACT_SCALAR(ta.content, '$.fraud_termination_appeal_assessment.assessment') AS llm_decision,
+                        ta.created_at as llm_assessment_date
+
+                    FROM \`shopify-dw.mart_cti_data.shop_terminations__wide\` t
+                    LEFT JOIN \`shopify-dw.risk.trust_platform_disputes\` d
+                        ON d.trust_platform_ticket_id = t.actionable_id
+                        AND LOWER(t.actionable_type) = 'ticket'
+                        AND d.type = 'appeal'
+
+                    -- Join for LLM assessments
+                    LEFT JOIN \`shopify-dw.base.base__trust_platform_shops\` s
+                        ON t.shop_id = SAFE_CAST(s.external_id AS INT64)
+                    LEFT JOIN \`sdp-prd-cti-data.base.base__trust_platform_disputes\` d2
+                        ON d2.subject_id = s.trust_platform_shop_id
+                        AND d2.ticket_id = t.actionable_id
+                        AND d2.dispute_type = 'appeal'
+                    LEFT JOIN \`sdp-prd-cti-data.base.base__trust_platform_sensitive_trust_assessments\` ta
+                        ON ta.assessable_id = d2.trust_platform_dispute_id
+                        AND ta.assessable_type = 'Dispute'
+                        AND DATE(ta.longboat_extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+
+                    WHERE DATE(t.appealed_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL \${days} DAY)
+                        AND (t.termination_reason_category = 'fraud')
+                        AND t.was_appealed = true
+
+                    -- Get only the most recent assessment per shop
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY t.shop_id ORDER BY ta.created_at DESC NULLS LAST) = 1
+
+                    ORDER BY t.appealed_at, t.termination_reason, t.shop_id
+                `;
+
+                const result = await quick.dw.querySync(fraudAppealsQuery, null, {
+                    timeoutMs: 60000
+                });
+
+                currentData = result.results;
+                
+                // Hide loading and show dashboard
+                loadingMessage.classList.add('hidden');
+                dashboardData.classList.remove('hidden');
+                
+                // Update dashboard content
+                dashboardData.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <h2>Dashboard Data Loaded</h2>
+                        <p>Found <strong>${result.rowCount}</strong> fraud appeals in the last ${days} days</p>
+                        <p>Ready to build visualizations with this data!</p>
+                    </div>
+                `;
+
+            } catch (error) {
+                loadingMessage.textContent = `Error loading data: ${error.message}`;
+                console.error('Dashboard data loading error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

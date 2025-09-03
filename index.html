@@ -109,6 +109,17 @@
             box-shadow: none;
         }
 
+        .auth-button.connected {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            cursor: default;
+        }
+
+        .auth-button.connected:hover {
+            transform: none;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
         .dashboard-content {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -1782,7 +1793,9 @@
 
                 isAuthenticated = true;
                 showStatus(authStatus, 'Successfully connected to BigQuery!', 'success');
-                authButton.textContent = 'Connected ✓';
+                authButton.textContent = 'Connected to BigQuery';
+                authButton.classList.add('connected');
+                authButton.disabled = false;
                 
                 // Load initial data
                 await loadDashboardData();

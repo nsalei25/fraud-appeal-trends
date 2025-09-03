@@ -448,6 +448,9 @@
         function createAppealTrendsChart(data, days) {
             if (!data || data.length === 0) return;
 
+            console.log('Creating chart with', data.length, 'records for', days, 'days');
+            console.log('Sample data:', data.slice(0, 3));
+
             // Show chart section
             chartSection.style.display = 'block';
 
@@ -455,15 +458,11 @@
             const dateData = {};
             const operationTypes = ['Total Appeals', 'Automated Rule', 'Manual Review', 'Bulk Shop Process', 'Multi-Shop Review'];
             
-            // Initialize data structure
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - days + 1);
+            // Initialize data structure - use the actual appeal dates from data
+            const allDates = [...new Set(data.map(row => row.appeal_date))].sort();
+            console.log('Found dates in data:', allDates);
             
-            for (let i = 0; i < days; i++) {
-                const date = new Date(startDate);
-                date.setDate(date.getDate() + i);
-                const dateStr = date.toISOString().split('T')[0];
-                
+            allDates.forEach(dateStr => {
                 dateData[dateStr] = {
                     'Total Appeals': 0,
                     'Automated Rule': 0,
@@ -472,7 +471,15 @@
                     'Multi-Shop Review': 0,
                     'Other': 0
                 };
-            }
+            });
+
+            // Log operation types we're seeing
+            const operationTypeCounts = {};
+            data.forEach(row => {
+                const opType = row.operation_type || 'Other';
+                operationTypeCounts[opType] = (operationTypeCounts[opType] || 0) + 1;
+            });
+            console.log('Operation type distribution:', operationTypeCounts);
 
             // Aggregate data by date and operation type
             data.forEach(row => {
@@ -485,8 +492,12 @@
                     } else {
                         dateData[date]['Other']++;
                     }
+                } else {
+                    console.log('Date not found in dateData:', date);
                 }
             });
+
+            console.log('Processed dateData:', dateData);
 
             // Prepare chart data
             const labels = Object.keys(dateData).map(date => {

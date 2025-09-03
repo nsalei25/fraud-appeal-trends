@@ -673,20 +673,15 @@
             // Show LLM chart section
             llmChartSection.style.display = 'block';
             
-            // Filter data to only include records with LLM decisions
+            // Filter data to only include records with LLM decisions for accepted/rejected counts
             const llmData = data.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
-            console.log('Found', llmData.length, 'records with LLM decisions');
-            
-            if (llmData.length === 0) {
-                console.log('No LLM decisions found, hiding LLM chart');
-                llmChartSection.style.display = 'none';
-                return;
-            }
+            console.log('Found', llmData.length, 'records with LLM decisions out of', data.length, 'total appeals');
 
-            // Process data by date
+            // Process data by date - use ALL data for total appeals, LLM data for accepted/rejected
             const dateData = {};
             
-            llmData.forEach(row => {
+            // First pass: count all appeals (including those without LLM decisions) 
+            data.forEach(row => {
                 let dateKey;
                 const rawDate = row.appeal_date;
                 
@@ -710,15 +705,36 @@
                     };
                 }
 
+                // Count ALL appeals for total
                 dateData[dateKey].total++;
+            });
+
+            // Second pass: count accepted/rejected from LLM decisions only
+            llmData.forEach(row => {
+                let dateKey;
+                const rawDate = row.appeal_date;
                 
-                const decision = row.llm_decision.toLowerCase();
-                if (decision.includes('accept') || decision.includes('approve') || 
-                    decision.includes('grant') || decision.includes('upheld') ||
-                    (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'))) {
-                    dateData[dateKey].accepted++;
+                if (rawDate) {
+                    if (typeof rawDate === 'object' && rawDate.value) {
+                        dateKey = rawDate.value;
+                    } else if (typeof rawDate === 'string') {
+                        dateKey = rawDate.split('T')[0];
+                    } else {
+                        dateKey = String(rawDate).split('T')[0];
+                    }
                 } else {
-                    dateData[dateKey].rejected++;
+                    dateKey = 'Unknown Date';
+                }
+                
+                if (dateData[dateKey]) {
+                    const decision = row.llm_decision.toLowerCase();
+                    if (decision.includes('accept') || decision.includes('approve') || 
+                        decision.includes('grant') || decision.includes('upheld') ||
+                        (!decision.includes('reject') && !decision.includes('deny') && !decision.includes('decline'))) {
+                        dateData[dateKey].accepted++;
+                    } else {
+                        dateData[dateKey].rejected++;
+                    }
                 }
             });
 

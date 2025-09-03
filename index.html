@@ -732,7 +732,7 @@
             element.classList.remove('hidden');
         }
 
-        function updateMetrics(data, days) {
+        function updateMetrics(data, days, terminationCountsData = []) {
             console.log('Updating metrics with data:', data?.length, 'records, days:', days);
             
             if (!data || data.length === 0) {
@@ -788,7 +788,7 @@
             createLLMFeedbackChart(data, days);
             
             // Create the rules analysis section
-            createRulesAnalysis(data, days);
+            createRulesAnalysis(data, days, terminationCountsData);
         }
 
         function createAppealTrendsChart(data, days) {
@@ -1209,7 +1209,7 @@
             console.log('LLM feedback chart created with', Object.keys(dateData).length, 'data points');
         }
 
-        function createRulesAnalysis(data, days) {
+        function createRulesAnalysis(data, days, terminationCountsData = []) {
             if (!data || data.length === 0) return;
 
             console.log('Creating rules analysis with', data.length, 'records');
@@ -1217,61 +1217,47 @@
             // Show rules section
             rulesSection.style.display = 'block';
             
-            // Process data by rule name - need to get rule names from the data
-            // For now, we'll simulate rule analysis since we don't have rule_name in the current schema
-            // In real implementation, this would need to be added to the BigQuery query
-            
-            // Simulate rule data based on operation types and other patterns
+            // Process data by rule name using REAL data from BigQuery
             const ruleAnalysis = {};
             
             data.forEach(row => {
-                // Create synthetic rule names based on operation_type and other factors
-                let ruleName;
-                const opType = row.operation_type || 'Unknown';
+                // Use actual rule name from BigQuery data
+                let ruleName = row.rule_name || 'Unspecified Rule';
                 
-                // Generate rule names based on operation type patterns
-                if (opType === 'Automated Rule') {
-                    const ruleVariants = [
-                        'Card Cashing :: Online Inference Model',
-                        'Card Cashing :: Batch Model', 
-                        'Generic :: Just In time Bank Account Detection',
-                        'NITS :: Model'
-                    ];
-                    ruleName = ruleVariants[Math.floor(Math.random() * ruleVariants.length)];
-                } else if (opType === 'Manual Review') {
-                    const ruleVariants = [
-                        'Account Opening Fraud :: Product Description Similarity Scoring',
-                        'Generic :: Quick High Value Orders',
-                        'Generic :: Generic Pattern Detection',
-                        'Account Opening Fraud :: Fraud Linked High Risk Signup IP (Neo4J)'
-                    ];
-                    ruleName = ruleVariants[Math.floor(Math.random() * ruleVariants.length)];
-                } else {
-                    const ruleVariants = [
-                        'Generic :: Fraud Cluster Linked Shops (Neo4J)',
-                        'Account Opening Fraud :: Linked High Volume Termination',
-                        'Terminate for use of monitored Paypal account',
-                        'Card Cashing :: Stripe Flagged Cashing'
-                    ];
-                    ruleName = ruleVariants[Math.floor(Math.random() * ruleVariants.length)];
+                // Clean up rule name if needed
+                if (ruleName.trim() === '' || ruleName === null) {
+                    ruleName = 'Unspecified Rule';
                 }
                 
                 if (!ruleAnalysis[ruleName]) {
                     ruleAnalysis[ruleName] = {
                         name: ruleName,
                         appeals: 0,
-                        totalTerminated: Math.floor(Math.random() * 2000) + 100 // Simulate total terminations
+                        totalTerminated: 0, // Will need to be calculated from termination data
+                        operationType: row.operation_type || 'Unknown'
                     };
                 }
                 
                 ruleAnalysis[ruleName].appeals++;
             });
             
+            // Create a lookup map for termination counts
+            const terminationCountsMap = {};
+            terminationCountsData.forEach(row => {
+                terminationCountsMap[row.rule_name] = parseInt(row.total_terminations);
+            });
+            
+            console.log('Termination counts map:', terminationCountsMap);
+            
             // Calculate appeal rates and convert to array
-            rulesData = Object.values(ruleAnalysis).map(rule => ({
-                ...rule,
-                appealRate: (rule.appeals / rule.totalTerminated) * 100
-            }));
+            rulesData = Object.values(ruleAnalysis).map(rule => {
+                const terminationCount = terminationCountsMap[rule.name] || 0;
+                return {
+                    ...rule,
+                    totalTerminated: terminationCount,
+                    appealRate: terminationCount > 0 ? (rule.appeals / terminationCount) * 100 : 0
+                };
+            });
             
             console.log('Processed rules data:', rulesData.length, 'unique rules');
             
@@ -1595,18 +1581,35 @@
                     ORDER BY t.appealed_at, t.termination_reason, t.shop_id
                 `;
 
-                // Execute both queries in parallel
-                const [currentResult, previousResult] = await Promise.all([
+                // Query for termination counts by rule (for calculating appeal rates)
+                const terminationCountsQuery = `
+                    SELECT
+                        t.rule_name,
+                        COUNT(*) as total_terminations
+                    FROM \`shopify-dw.mart_cti_data.shop_terminations__wide\` t
+                    WHERE DATE(t.terminated_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)
+                        AND (t.termination_reason_category = 'fraud')
+                        AND t.rule_name IS NOT NULL
+                        AND t.rule_name != ''
+                    GROUP BY t.rule_name
+                    ORDER BY total_terminations DESC
+                `;
+
+                // Execute all three queries in parallel
+                const [currentResult, previousResult, terminationCountsResult] = await Promise.all([
                     quick.dw.querySync(fraudAppealsQuery, null, { timeoutMs: 60000 }),
-                    quick.dw.querySync(previousFraudAppealsQuery, null, { timeoutMs: 60000 })
+                    quick.dw.querySync(previousFraudAppealsQuery, null, { timeoutMs: 60000 }),
+                    quick.dw.querySync(terminationCountsQuery, null, { timeoutMs: 60000 })
                 ]);
 
                 currentData = currentResult.results;
                 previousData = previousResult.results;
+                const terminationCountsData = terminationCountsResult.results;
                 console.log('Previous period data:', previousData?.length, 'records');
+                console.log('Termination counts data:', terminationCountsData?.length, 'rules');
                 
                 // Update metrics
-                updateMetrics(currentData, days);
+                updateMetrics(currentData, days, terminationCountsData);
                 
                 // Hide loading and show dashboard
                 loadingMessage.classList.add('hidden');

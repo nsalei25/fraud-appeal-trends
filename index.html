@@ -467,6 +467,11 @@
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
         }
 
+        .rule-card[style*="cursor: pointer"]:hover {
+            background: rgba(59, 130, 246, 0.02);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
         .rule-card.high-rate {
             border-left: 4px solid #ef4444;
             background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, white 100%);
@@ -1279,11 +1284,17 @@
                         name: ruleName,
                         appeals: 0,
                         totalTerminated: 0, // Will need to be calculated from termination data
-                        operationType: row.operation_type || 'Unknown'
+                        operationType: row.operation_type || 'Unknown',
+                        ticketIds: [] // Store prioritized appeal ticket IDs
                     };
                 }
                 
                 ruleAnalysis[ruleName].appeals++;
+                
+                // Collect prioritized appeal ticket IDs if available
+                if (row.prioritized_appeal_ticket_id) {
+                    ruleAnalysis[ruleName].ticketIds.push(row.prioritized_appeal_ticket_id);
+                }
             });
             
             // Create a lookup map for termination counts
@@ -1345,8 +1356,12 @@
                     const rateClass = rule.appealRate >= 10 ? 'high-rate' : 
                                      rule.appealRate >= 5 ? 'medium-rate' : 'low-rate';
                     
+                    const trustPlatformUrl = generateTrustPlatformUrl(rule.ticketIds);
+                    const clickHandler = trustPlatformUrl ? `onclick="window.open('${trustPlatformUrl}', '_blank')"` : '';
+                    const cursorStyle = trustPlatformUrl ? 'cursor: pointer;' : 'cursor: default;';
+                    
                     return `
-                        <div class="rule-card ${rateClass}">
+                        <div class="rule-card ${rateClass}" ${clickHandler} style="${cursorStyle}">
                             <div class="rule-appeal-count">${rule.appeals}</div>
                             <div class="rule-link">🔗</div>
                             <div class="rule-name">${rule.name}</div>
@@ -1399,6 +1414,31 @@
             });
             
             return filtered;
+        }
+
+        // Generate Trust Platform URL for a rule
+        function generateTrustPlatformUrl(ticketIds) {
+            if (!ticketIds || ticketIds.length === 0) {
+                return null;
+            }
+            
+            const baseUrl = 'https://trust-platform.shopify.io/tickets';
+            const visibleColumns = [
+                'status',
+                'type', 
+                'action',
+                'assignee',
+                'subject',
+                'opened_by',
+                'requested_date'
+            ];
+            
+            // Build the query string
+            const columnParams = visibleColumns.map(col => `visible_columns[]=${col}`).join('&');
+            const idQuery = ticketIds.map(id => `id:${id}`).join(' OR ');
+            const query = encodeURIComponent(`!_exists_: user_id AND (${idQuery})`);
+            
+            return `${baseUrl}?${columnParams}&q=${query}`;
         }
 
         // Event listeners for rules section

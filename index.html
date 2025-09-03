@@ -1767,10 +1767,11 @@
             
             indicator.textContent = formattedChange;
             
+            // For fraud appeals: increase = bad (red), decrease = good (green)
             if (changePercent > 0) {
-                indicator.className = 'change-indicator positive';
+                indicator.className = 'change-indicator negative'; // Red for increases
             } else if (changePercent < 0) {
-                indicator.className = 'change-indicator negative';
+                indicator.className = 'change-indicator positive'; // Green for decreases
             } else {
                 indicator.className = 'change-indicator neutral';
             }

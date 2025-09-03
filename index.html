@@ -449,48 +449,71 @@
             if (!data || data.length === 0) return;
 
             console.log('Creating chart with', data.length, 'records for', days, 'days');
-            console.log('Sample data:', data.slice(0, 3));
+            console.log('First 3 data records:', JSON.stringify(data.slice(0, 3), null, 2));
 
             // Show chart section
             chartSection.style.display = 'block';
 
-            // Process data by date and operation type
+            // Process data by date and operation type - use direct aggregation approach
             const dateData = {};
-            const operationTypes = ['Total Appeals', 'Automated Rule', 'Manual Review', 'Bulk Shop Process', 'Multi-Shop Review'];
             
-            // Initialize data structure - use the actual appeal dates from data, but ensure proper date format
-            const rawDates = data.map(row => {
-                // Ensure we have a proper date string (YYYY-MM-DD format)
-                let dateStr = row.appeal_date;
-                if (dateStr && typeof dateStr === 'string') {
-                    // If it's already in YYYY-MM-DD format, keep it
-                    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        return dateStr;
+            // Log what we're actually getting from BigQuery
+            const sampleRow = data[0];
+            console.log('Sample row keys:', Object.keys(sampleRow));
+            console.log('appeal_date format examples:', data.slice(0, 5).map(row => ({
+                raw: row.appeal_date,
+                type: typeof row.appeal_date,
+                isString: typeof row.appeal_date === 'string'
+            })));
+
+            // Direct aggregation - handle BigQuery date objects properly
+            data.forEach(row => {
+                let dateKey;
+                const rawDate = row.appeal_date;
+                
+                // Handle different possible date formats from BigQuery
+                if (rawDate) {
+                    if (typeof rawDate === 'object' && rawDate.value) {
+                        // BigQuery date object format
+                        dateKey = rawDate.value;
+                    } else if (typeof rawDate === 'string') {
+                        // String format
+                        dateKey = rawDate;
+                    } else {
+                        // Try to convert to string
+                        dateKey = String(rawDate);
                     }
-                    // If it's a different format, try to parse it
-                    const date = new Date(dateStr);
-                    if (!isNaN(date.getTime())) {
-                        return date.toISOString().split('T')[0];
-                    }
+                } else {
+                    dateKey = 'Unknown Date';
                 }
-                return null;
-            }).filter(date => date !== null);
-            
-            const allDates = [...new Set(rawDates)].sort();
-            console.log('Found unique dates in data:', allDates);
-            console.log('Sample raw dates from data:', data.slice(0, 5).map(row => row.appeal_date));
-            
-            allDates.forEach(dateStr => {
-                dateData[dateStr] = {
-                    'Total Appeals': 0,
-                    'Automated Rule': 0,
-                    'Manual Review': 0,
-                    'Bulk Shop Process': 0,
-                    'Multi-Shop Review': 0,
-                    'Other': 0
-                };
+
+                // Initialize date entry if not exists
+                if (!dateData[dateKey]) {
+                    dateData[dateKey] = {
+                        'Total Appeals': 0,
+                        'Automated Rule': 0,
+                        'Manual Review': 0,
+                        'Bulk Shop Process': 0,
+                        'Multi-Shop Review': 0,
+                        'Other': 0
+                    };
+                }
+
+                // Count this appeal
+                dateData[dateKey]['Total Appeals']++;
+                
+                // Count by operation type
+                const opType = row.operation_type || 'Other';
+                if (dateData[dateKey][opType] !== undefined) {
+                    dateData[dateKey][opType]++;
+                } else {
+                    dateData[dateKey]['Other']++;
+                }
             });
 
+            console.log('Direct aggregation results:', dateData);
+            console.log('Number of unique dates:', Object.keys(dateData).length);
+            
             // Log operation types we're seeing
             const operationTypeCounts = {};
             data.forEach(row => {
@@ -498,47 +521,33 @@
                 operationTypeCounts[opType] = (operationTypeCounts[opType] || 0) + 1;
             });
             console.log('Operation type distribution:', operationTypeCounts);
-
-            // Aggregate data by date and operation type
-            data.forEach(row => {
-                // Normalize the date from this row
-                let dateStr = row.appeal_date;
-                if (dateStr && typeof dateStr === 'string') {
-                    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        // Already in correct format
-                    } else {
-                        const date = new Date(dateStr);
-                        if (!isNaN(date.getTime())) {
-                            dateStr = date.toISOString().split('T')[0];
-                        }
-                    }
-                }
-                
-                if (dateData[dateStr]) {
-                    dateData[dateStr]['Total Appeals']++;
-                    const opType = row.operation_type || 'Other';
-                    if (dateData[dateStr][opType] !== undefined) {
-                        dateData[dateStr][opType]++;
-                    } else {
-                        dateData[dateStr]['Other']++;
-                    }
-                } else {
-                    console.log('Date not found in dateData:', dateStr, 'from raw:', row.appeal_date);
-                }
-            });
-
-            console.log('Processed dateData:', dateData);
+            
+            // Check total
+            const totalAppealsByDate = Object.values(dateData).reduce((sum, dayData) => sum + dayData['Total Appeals'], 0);
+            console.log('Total appeals in chart data:', totalAppealsByDate);
 
             // Prepare chart data
-            const labels = Object.keys(dateData).map(date => {
-                const d = new Date(date);
-                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const sortedDates = Object.keys(dateData).sort();
+            const labels = sortedDates.map(date => {
+                try {
+                    // Try to parse as date for formatting
+                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const d = new Date(date + 'T00:00:00');
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        }
+                    }
+                    // If parsing fails, use the raw date string
+                    return date;
+                } catch (e) {
+                    return date;
+                }
             });
 
             const datasets = [
                 {
                     label: 'Total Appeals',
-                    data: Object.values(dateData).map(d => d['Total Appeals']),
+                    data: sortedDates.map(date => dateData[date]['Total Appeals']),
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     fill: false,
@@ -546,7 +555,7 @@
                 },
                 {
                     label: 'Automated Rule',
-                    data: Object.values(dateData).map(d => d['Automated Rule']),
+                    data: sortedDates.map(date => dateData[date]['Automated Rule']),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     fill: false,
@@ -554,7 +563,7 @@
                 },
                 {
                     label: 'Manual Review',
-                    data: Object.values(dateData).map(d => d['Manual Review']),
+                    data: sortedDates.map(date => dateData[date]['Manual Review']),
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
                     fill: false,
@@ -562,7 +571,7 @@
                 },
                 {
                     label: 'Bulk Shop Process',
-                    data: Object.values(dateData).map(d => d['Bulk Shop Process']),
+                    data: sortedDates.map(date => dateData[date]['Bulk Shop Process']),
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     fill: false,
@@ -570,7 +579,7 @@
                 },
                 {
                     label: 'Multi-Shop Review',
-                    data: Object.values(dateData).map(d => d['Multi-Shop Review']),
+                    data: sortedDates.map(date => dateData[date]['Multi-Shop Review']),
                     borderColor: '#8b5cf6',
                     backgroundColor: 'rgba(139, 92, 246, 0.1)',
                     fill: false,

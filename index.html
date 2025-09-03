@@ -289,6 +289,8 @@
         }
 
         function updateMetrics(data, days) {
+            console.log('Updating metrics with data:', data?.length, 'records, days:', days);
+            
             if (!data || data.length === 0) {
                 totalAppeals.textContent = '0';
                 avgAppealsPerDay.innerHTML = '0<span class="metric-unit">per day</span>';
@@ -299,13 +301,16 @@
             // Calculate total appeals
             const total = data.length;
             totalAppeals.textContent = total.toLocaleString();
+            console.log('Total appeals:', total);
 
             // Calculate average appeals per day
             const avgPerDay = Math.round(total / days);
             avgAppealsPerDay.innerHTML = `${avgPerDay}<span class="metric-unit">per day</span>`;
+            console.log('Avg per day:', avgPerDay);
 
             // Calculate LLM acceptance rate
             const llmDecisions = data.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
+            console.log('LLM decisions found:', llmDecisions.length);
             let acceptedCount = 0;
             
             if (llmDecisions.length > 0) {
@@ -318,12 +323,16 @@
                 
                 const acceptanceRate = Math.round((acceptedCount / llmDecisions.length) * 100);
                 llmAcceptanceRate.textContent = `${acceptanceRate}%`;
+                console.log('LLM acceptance rate:', acceptanceRate, '% (', acceptedCount, '/', llmDecisions.length, ')');
             } else {
                 llmAcceptanceRate.textContent = 'N/A';
+                console.log('No LLM decisions available');
             }
 
-            // Remove loading state
-            metricsGrid.classList.remove('loading-metrics');
+            // Remove loading state from all metric cards
+            const metricCards = document.querySelectorAll('.metric-card');
+            metricCards.forEach(card => card.classList.remove('loading-metrics'));
+            console.log('Removed loading state from', metricCards.length, 'metric cards');
         }
 
         // Authentication flow

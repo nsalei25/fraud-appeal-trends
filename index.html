@@ -439,7 +439,7 @@
                         AND ta.assessable_type = 'Dispute'
                         AND DATE(ta.longboat_extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
 
-                    WHERE DATE(t.appealed_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL \${days} DAY)
+                    WHERE DATE(t.appealed_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)
                         AND (t.termination_reason_category = 'fraud')
                         AND t.was_appealed = true
 
@@ -474,6 +474,10 @@
             } catch (error) {
                 loadingMessage.textContent = `Error loading data: ${error.message}`;
                 console.error('Dashboard data loading error:', error);
+                console.error('Full error details:', JSON.stringify(error, null, 2));
+                
+                // Show detailed error in UI for debugging
+                showStatus(authStatus, `Query failed: ${error.message || 'Unknown error'}. Check console for details.`, 'error');
             }
         }
     </script>

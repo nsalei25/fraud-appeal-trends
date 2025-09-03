@@ -458,9 +458,27 @@
             const dateData = {};
             const operationTypes = ['Total Appeals', 'Automated Rule', 'Manual Review', 'Bulk Shop Process', 'Multi-Shop Review'];
             
-            // Initialize data structure - use the actual appeal dates from data
-            const allDates = [...new Set(data.map(row => row.appeal_date))].sort();
-            console.log('Found dates in data:', allDates);
+            // Initialize data structure - use the actual appeal dates from data, but ensure proper date format
+            const rawDates = data.map(row => {
+                // Ensure we have a proper date string (YYYY-MM-DD format)
+                let dateStr = row.appeal_date;
+                if (dateStr && typeof dateStr === 'string') {
+                    // If it's already in YYYY-MM-DD format, keep it
+                    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        return dateStr;
+                    }
+                    // If it's a different format, try to parse it
+                    const date = new Date(dateStr);
+                    if (!isNaN(date.getTime())) {
+                        return date.toISOString().split('T')[0];
+                    }
+                }
+                return null;
+            }).filter(date => date !== null);
+            
+            const allDates = [...new Set(rawDates)].sort();
+            console.log('Found unique dates in data:', allDates);
+            console.log('Sample raw dates from data:', data.slice(0, 5).map(row => row.appeal_date));
             
             allDates.forEach(dateStr => {
                 dateData[dateStr] = {
@@ -483,17 +501,29 @@
 
             // Aggregate data by date and operation type
             data.forEach(row => {
-                const date = row.appeal_date;
-                if (dateData[date]) {
-                    dateData[date]['Total Appeals']++;
-                    const opType = row.operation_type || 'Other';
-                    if (dateData[date][opType] !== undefined) {
-                        dateData[date][opType]++;
+                // Normalize the date from this row
+                let dateStr = row.appeal_date;
+                if (dateStr && typeof dateStr === 'string') {
+                    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        // Already in correct format
                     } else {
-                        dateData[date]['Other']++;
+                        const date = new Date(dateStr);
+                        if (!isNaN(date.getTime())) {
+                            dateStr = date.toISOString().split('T')[0];
+                        }
+                    }
+                }
+                
+                if (dateData[dateStr]) {
+                    dateData[dateStr]['Total Appeals']++;
+                    const opType = row.operation_type || 'Other';
+                    if (dateData[dateStr][opType] !== undefined) {
+                        dateData[dateStr][opType]++;
+                    } else {
+                        dateData[dateStr]['Other']++;
                     }
                 } else {
-                    console.log('Date not found in dateData:', date);
+                    console.log('Date not found in dateData:', dateStr, 'from raw:', row.appeal_date);
                 }
             });
 

@@ -843,7 +843,14 @@
         </div>
 
         <div class="chart-section" id="spAppealTrendsSection" style="display: none;">
-            <h2 class="chart-title">SP Rejection Appeal Trends by Report Type</h2>
+            <div class="llm-chart-header">
+                <h2 class="chart-title">SP Rejection Appeal Trends by Report Type</h2>
+                <div class="llm-buttons">
+                    <button id="viewSPAppealsBtn" class="llm-button">
+                        View All SP Appeals
+                    </button>
+                </div>
+            </div>
             <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Daily count of appeals following Shopify Payments rejections, split by latest report type</p>
             <div class="chart-container">
                 <canvas id="spAppealTrendsChart"></canvas>
@@ -893,6 +900,7 @@
         const rulesContainer = document.getElementById('rulesContainer');
         const countryTrendsSection = document.getElementById('countryTrendsSection');
         const spAppealTrendsSection = document.getElementById('spAppealTrendsSection');
+        const viewSPAppealsBtn = document.getElementById('viewSPAppealsBtn');
         const viewAcceptedBtn = document.getElementById('viewAcceptedBtn');
         const viewRejectedBtn = document.getElementById('viewRejectedBtn');
         
@@ -903,6 +911,7 @@
         let rulesData = [];
         let acceptedAppealsIds = [];
         let rejectedAppealsIds = [];
+        let spAppealTicketIds = [];
 
         function showStatus(element, message, type = 'info') {
             element.className = `status ${type}`;
@@ -1652,6 +1661,10 @@
 
             console.log('Creating SP appeal trends chart with', data.length, 'records');
             
+            // Store ticket IDs for the view button
+            spAppealTicketIds = data.map(row => row.trust_platform_ticket_id).filter(id => id);
+            console.log('Stored', spAppealTicketIds.length, 'SP appeal ticket IDs');
+            
             // Show SP appeals section
             spAppealTrendsSection.style.display = 'block';
             
@@ -2080,6 +2093,20 @@
                 }
             } else {
                 alert('No rejected appeals found for the current time period');
+            }
+        });
+
+        // Event listener for SP appeals button
+        viewSPAppealsBtn.addEventListener('click', function() {
+            if (spAppealTicketIds.length > 0) {
+                const url = generateTrustPlatformUrl(spAppealTicketIds);
+                if (url) {
+                    window.open(url, '_blank');
+                } else {
+                    alert('No SP appeals found to display');
+                }
+            } else {
+                alert('No SP appeals found for the current time period');
             }
         });
 

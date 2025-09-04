@@ -843,8 +843,8 @@
         </div>
 
         <div class="chart-section" id="spAppealTrendsSection" style="display: none;">
-            <h2 class="chart-title">SP Rejection Appeal Trends Over Time</h2>
-            <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Daily count of appeals following Shopify Payments rejections by Fraud team</p>
+            <h2 class="chart-title">SP Rejection Appeal Trends by Report Type</h2>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Daily count of appeals following Shopify Payments rejections, split by latest report type</p>
             <div class="chart-container">
                 <canvas id="spAppealTrendsChart"></canvas>
             </div>
@@ -1655,8 +1655,15 @@
             // Show SP appeals section
             spAppealTrendsSection.style.display = 'block';
             
-            // Process data by appeal date and action category
+            // Process data by appeal date and latest report type
             const spDateData = {};
+            const reportTypes = new Set();
+            
+            // First pass: collect all report types
+            data.forEach(row => {
+                const reportType = row.latest_report_type || 'Unknown';
+                reportTypes.add(reportType);
+            });
             
             data.forEach(row => {
                 let dateKey;
@@ -1677,23 +1684,19 @@
                 
                 // Initialize date entry if not exists
                 if (!spDateData[dateKey]) {
-                    spDateData[dateKey] = {
-                        'Total SP Appeals': 0,
-                        'SP Monitor & Reject': 0,
-                        'SP Reject': 0,
-                        'SP Reject with Communications': 0,
-                        'SP Reject without Communications': 0
-                    };
+                    spDateData[dateKey] = { 'Total SP Appeals': 0 };
+                    // Initialize all report types
+                    reportTypes.forEach(type => {
+                        spDateData[dateKey][type] = 0;
+                    });
                 }
                 
                 // Count total appeals
                 spDateData[dateKey]['Total SP Appeals']++;
                 
-                // Count by action category
-                const actionCategory = row.action_category || 'SP Reject';
-                if (spDateData[dateKey][actionCategory] !== undefined) {
-                    spDateData[dateKey][actionCategory]++;
-                }
+                // Count by latest report type
+                const reportType = row.latest_report_type || 'Unknown';
+                spDateData[dateKey][reportType]++;
             });
 
             console.log('Processed SP appeal date data:', spDateData);
@@ -1714,61 +1717,53 @@
                 }
             });
             
-            // Create datasets - showing total and main categories
-            const datasets = [
-                {
-                    label: 'Total SP Appeals',
-                    data: sortedDates.map(date => spDateData[date]['Total SP Appeals']),
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 5,
-                    pointBackgroundColor: '#3b82f6',
-                    pointBorderColor: '#ffffff',
-                    pointBorderWidth: 2,
-                    borderWidth: 3
-                },
-                {
-                    label: 'SP Monitor & Reject',
-                    data: sortedDates.map(date => spDateData[date]['SP Monitor & Reject']),
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#ef4444',
-                    pointBorderColor: '#ffffff',
-                    pointBorderWidth: 2,
-                    borderWidth: 2
-                },
-                {
-                    label: 'SP Reject',
-                    data: sortedDates.map(date => spDateData[date]['SP Reject']),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#10b981',
-                    pointBorderColor: '#ffffff',
-                    pointBorderWidth: 2,
-                    borderWidth: 2
-                },
-                {
-                    label: 'SP Reject with Communications',
-                    data: sortedDates.map(date => spDateData[date]['SP Reject with Communications']),
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#f59e0b',
-                    pointBorderColor: '#ffffff',
-                    pointBorderWidth: 2,
-                    borderWidth: 2
-                }
+            // Create datasets dynamically based on report types found
+            const colors = [
+                '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
+                '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6b7280'
             ];
+            
+            const datasets = [];
+            
+            // Always add Total SP Appeals first
+            datasets.push({
+                label: 'Total SP Appeals',
+                data: sortedDates.map(date => spDateData[date]['Total SP Appeals']),
+                borderColor: colors[0],
+                backgroundColor: colors[0].replace(')', ', 0.1)').replace('rgb', 'rgba'),
+                fill: false,
+                tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: colors[0],
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                borderWidth: 3
+            });
+            
+            // Add datasets for each report type (excluding Unknown if possible)
+            const sortedReportTypes = Array.from(reportTypes)
+                .filter(type => type !== 'Unknown')
+                .sort()
+                .concat(reportTypes.has('Unknown') ? ['Unknown'] : []);
+            
+            sortedReportTypes.forEach((reportType, index) => {
+                const colorIndex = (index + 1) % colors.length;
+                const color = colors[colorIndex];
+                
+                datasets.push({
+                    label: reportType,
+                    data: sortedDates.map(date => spDateData[date][reportType] || 0),
+                    borderColor: color,
+                    backgroundColor: color.replace(')', ', 0.1)').replace('rgb', 'rgba'),
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: color,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    borderWidth: 2
+                });
+            });
             
             // Destroy existing chart
             if (spAppealTrendsChart) {

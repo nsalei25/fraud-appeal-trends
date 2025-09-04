@@ -842,6 +842,14 @@
             </div>
         </div>
 
+        <div class="chart-section" id="spAppealTrendsSection" style="display: none;">
+            <h2 class="chart-title">SP Rejection Appeal Trends Over Time</h2>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Daily count of appeals following Shopify Payments rejections by Fraud team</p>
+            <div class="chart-container">
+                <canvas id="spAppealTrendsChart"></canvas>
+            </div>
+        </div>
+
         <div class="dashboard-content">
             <div id="authStatus" class="status hidden"></div>
             
@@ -884,12 +892,14 @@
         const searchInput = document.getElementById('searchInput');
         const rulesContainer = document.getElementById('rulesContainer');
         const countryTrendsSection = document.getElementById('countryTrendsSection');
+        const spAppealTrendsSection = document.getElementById('spAppealTrendsSection');
         const viewAcceptedBtn = document.getElementById('viewAcceptedBtn');
         const viewRejectedBtn = document.getElementById('viewRejectedBtn');
         
         let appealTrendsChart = null;
         let llmFeedbackChart = null;
         let countryTrendsChart = null;
+        let spAppealTrendsChart = null;
         let rulesData = [];
         let acceptedAppealsIds = [];
         let rejectedAppealsIds = [];
@@ -1634,6 +1644,234 @@
             return countryMap[countryCode] || countryCode || 'Unknown';
         }
 
+        function createSPAppealTrendsChart(data, days) {
+            if (!data || data.length === 0) {
+                console.log('No SP appeals data available');
+                return;
+            }
+
+            console.log('Creating SP appeal trends chart with', data.length, 'records');
+            
+            // Show SP appeals section
+            spAppealTrendsSection.style.display = 'block';
+            
+            // Process data by appeal date and action category
+            const spDateData = {};
+            
+            data.forEach(row => {
+                let dateKey;
+                const rawDate = row.appeal_date;
+                
+                // Handle date formatting
+                if (rawDate) {
+                    if (typeof rawDate === 'object' && rawDate.value) {
+                        dateKey = rawDate.value;
+                    } else if (typeof rawDate === 'string') {
+                        dateKey = rawDate.split('T')[0];
+                    } else {
+                        dateKey = String(rawDate).split('T')[0];
+                    }
+                } else {
+                    dateKey = 'Unknown Date';
+                }
+                
+                // Initialize date entry if not exists
+                if (!spDateData[dateKey]) {
+                    spDateData[dateKey] = {
+                        'Total SP Appeals': 0,
+                        'SP Monitor & Reject': 0,
+                        'SP Reject': 0,
+                        'SP Reject with Communications': 0,
+                        'SP Reject without Communications': 0
+                    };
+                }
+                
+                // Count total appeals
+                spDateData[dateKey]['Total SP Appeals']++;
+                
+                // Count by action category
+                const actionCategory = row.action_category || 'SP Reject';
+                if (spDateData[dateKey][actionCategory] !== undefined) {
+                    spDateData[dateKey][actionCategory]++;
+                }
+            });
+
+            console.log('Processed SP appeal date data:', spDateData);
+            
+            // Prepare chart data
+            const sortedDates = Object.keys(spDateData).sort();
+            const labels = sortedDates.map(date => {
+                try {
+                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const d = new Date(date + 'T00:00:00');
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        }
+                    }
+                    return date;
+                } catch (e) {
+                    return date;
+                }
+            });
+            
+            // Create datasets - showing total and main categories
+            const datasets = [
+                {
+                    label: 'Total SP Appeals',
+                    data: sortedDates.map(date => spDateData[date]['Total SP Appeals']),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    borderWidth: 3
+                },
+                {
+                    label: 'SP Monitor & Reject',
+                    data: sortedDates.map(date => spDateData[date]['SP Monitor & Reject']),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    borderWidth: 2
+                },
+                {
+                    label: 'SP Reject',
+                    data: sortedDates.map(date => spDateData[date]['SP Reject']),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    borderWidth: 2
+                },
+                {
+                    label: 'SP Reject with Communications',
+                    data: sortedDates.map(date => spDateData[date]['SP Reject with Communications']),
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#f59e0b',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    borderWidth: 2
+                }
+            ];
+            
+            // Destroy existing chart
+            if (spAppealTrendsChart) {
+                spAppealTrendsChart.destroy();
+            }
+            
+            // Create new chart
+            const ctx = document.getElementById('spAppealTrendsChart').getContext('2d');
+            spAppealTrendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'start',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 20,
+                                font: {
+                                    size: 13,
+                                    weight: '600'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#1a202c',
+                            bodyColor: '#4a5568',
+                            borderColor: 'rgba(0, 0, 0, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    return tooltipItems[0].label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Appeals',
+                                font: {
+                                    size: 12,
+                                    weight: '600'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Appeal Date',
+                                font: {
+                                    size: 12,
+                                    weight: '600'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 4,
+                            hoverRadius: 6
+                        },
+                        line: {
+                            borderWidth: 2
+                        }
+                    }
+                }
+            });
+            
+            console.log('SP appeal trends chart created with', Object.keys(spDateData).length, 'data points');
+        }
+
         function createRulesAnalysis(data, days, terminationCountsData = []) {
             if (!data || data.length === 0) return;
 
@@ -2100,18 +2338,91 @@
                     ORDER BY total_terminations DESC
                 `;
 
-                // Execute all three queries in parallel
-                const [currentResult, previousResult, terminationCountsResult] = await Promise.all([
+                // Query for SP rejection appeals
+                const spAppealsQuery = `
+                    -- Query for Fraud team tickets that were actioned as Monitor & Reject Shopify Payments 
+                    -- and submitted an appeal within the selected date range
+                    SELECT
+                        tw.trust_platform_ticket_id,
+                        tw.subjectable_id as shop_id,
+                        DATE(tw.created_at) as ticket_date,
+                        tw.status,
+                        tw.source,
+                        tw.latest_report_type,
+                        tw.team,
+
+                        -- Trust Platform Action details (the original SP action)
+                        tpa.action_type,
+                        DATE(tpa.created_at) as action_date,
+                        tpa.trust_platform_action_id,
+
+                        -- Classify action type
+                        CASE
+                            WHEN tpa.action_type = 'shopify_payments_monitor_reject' THEN 'SP Monitor & Reject'
+                            WHEN tpa.action_type = 'reject_shopify_payments' THEN 'SP Reject'
+                            WHEN tpa.action_type = 'reject_shopify_payments_with_communications' THEN 'SP Reject with Communications'
+                            WHEN tpa.action_type = 'reject_shopify_payments_without_communications' THEN 'SP Reject without Communications'
+                            ELSE tpa.action_type
+                        END as action_category,
+
+                        -- Dispute/Appeal details
+                        tpd.type as dispute_type,
+                        tpd.status as dispute_status,
+                        DATE(tpd.created_at) as appeal_date,
+
+                        -- Timing analysis
+                        DATE_DIFF(DATE(tpd.created_at), DATE(tpa.created_at), DAY) as days_action_to_appeal,
+
+                        -- Source classification
+                        'Shopify Payments Rejection Appeal' as source_type
+
+                    FROM \`shopify-dw.mart_cti_data.trust_platform_tickets__wide\` tw
+
+                    -- Join with SP actions
+                    INNER JOIN \`shopify-dw.risk.trust_platform_actions\` tpa
+                        ON tw.trust_platform_ticket_id = tpa.actionable_id
+                        AND tpa.actionable_type = 'Ticket'
+                        AND tpa.action_type IN (
+                            'shopify_payments_monitor_reject',
+                            'reject_shopify_payments',
+                            'reject_shopify_payments_with_communications',
+                            'reject_shopify_payments_without_communications'
+                        )
+
+                    -- Join with disputes/appeals
+                    INNER JOIN \`shopify-dw.risk.trust_platform_disputes\` tpd
+                        ON tw.trust_platform_ticket_id = tpd.trust_platform_ticket_id
+                        AND tpd.type = 'appeal'
+                        AND tpd.created_at > tpa.created_at  -- Appeal came after the action
+
+                    WHERE
+                        -- Appeals submitted in selected date range
+                        DATE(tpd.created_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)
+
+                        -- Recent tickets (partition filter)
+                        AND tw.created_at >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY))
+
+                        -- Fraud team only
+                        AND tw.team = 'Fraud'
+
+                    ORDER BY tpd.created_at DESC
+                `;
+
+                // Execute all four queries in parallel
+                const [currentResult, previousResult, terminationCountsResult, spAppealsResult] = await Promise.all([
                     quick.dw.querySync(fraudAppealsQuery, null, { timeoutMs: 60000 }),
                     quick.dw.querySync(previousFraudAppealsQuery, null, { timeoutMs: 60000 }),
-                    quick.dw.querySync(terminationCountsQuery, null, { timeoutMs: 60000 })
+                    quick.dw.querySync(terminationCountsQuery, null, { timeoutMs: 60000 }),
+                    quick.dw.querySync(spAppealsQuery, null, { timeoutMs: 60000 })
                 ]);
 
                 currentData = currentResult.results;
                 previousData = previousResult.results;
                 const terminationCountsData = terminationCountsResult.results;
+                const spAppealsData = spAppealsResult.results;
                 console.log('Previous period data:', previousData?.length, 'records');
                 console.log('Termination counts data:', terminationCountsData?.length, 'rules');
+                console.log('SP appeals data:', spAppealsData?.length, 'records');
                 
                 // Log unspecified rule cases for debugging
                 const unspecifiedCases = currentData.filter(row => 
@@ -2130,6 +2441,9 @@
                 
                 // Update metrics
                 updateMetrics(currentData, days, terminationCountsData);
+                
+                // Create SP appeals chart
+                createSPAppealTrendsChart(spAppealsData, days);
                 
                 // Hide loading and show dashboard
                 loadingMessage.classList.add('hidden');

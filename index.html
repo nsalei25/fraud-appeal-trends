@@ -953,10 +953,11 @@
             spRejectionAppeals.textContent = spTotal.toLocaleString();
             console.log('SP rejection appeals:', spTotal);
 
-            // Calculate average appeals per day
-            const avgPerDay = Math.round(total / days);
+            // Calculate average appeals per day (Termination Appeals + SP Rejection Appeals)
+            const totalAllAppeals = total + spTotal;
+            const avgPerDay = Math.round(totalAllAppeals / days);
             avgAppealsPerDay.innerHTML = `${avgPerDay}<span class="metric-unit">per day</span>`;
-            console.log('Avg per day:', avgPerDay);
+            console.log('Avg per day:', avgPerDay, '(', total, 'termination +', spTotal, 'SP rejection /', days, 'days)');
 
             // Calculate LLM acceptance rate
             const llmDecisions = data.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
@@ -985,7 +986,7 @@
             console.log('Removed loading state from', metricCards.length, 'metric cards');
             
             // Update percentage changes
-            updatePercentageChanges(data, days);
+            updatePercentageChanges(data, days, spAppealsData);
             
             // Create the appeal trends chart
             createAppealTrendsChart(data, days);
@@ -2129,7 +2130,7 @@
             }
         });
 
-        function updatePercentageChanges(currentData, days) {
+        function updatePercentageChanges(currentData, days, currentSpData = []) {
             if (!previousData || previousData.length === 0) {
                 // No previous data, show no change indicators
                 updateChangeIndicator(totalAppealsChange, null);
@@ -2140,7 +2141,9 @@
 
             // Calculate current metrics
             const currentTotal = currentData.length;
-            const currentAvg = Math.round(currentTotal / days);
+            const currentSpTotal = currentSpData ? currentSpData.length : 0;
+            const currentTotalAllAppeals = currentTotal + currentSpTotal;
+            const currentAvg = Math.round(currentTotalAllAppeals / days);
             const currentLlmDecisions = currentData.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
             let currentAcceptanceRate = 0;
             if (currentLlmDecisions.length > 0) {
@@ -2153,9 +2156,11 @@
                 currentAcceptanceRate = (currentAccepted / currentLlmDecisions.length) * 100;
             }
 
-            // Calculate previous metrics
+            // Calculate previous metrics (SP data not available for previous period yet)
             const prevTotal = previousData.length;
-            const prevAvg = Math.round(prevTotal / days);
+            const prevSpTotal = 0; // TODO: Add previous SP data when available
+            const prevTotalAllAppeals = prevTotal + prevSpTotal;
+            const prevAvg = Math.round(prevTotalAllAppeals / days);
             const prevLlmDecisions = previousData.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
             let prevAcceptanceRate = 0;
             if (prevLlmDecisions.length > 0) {

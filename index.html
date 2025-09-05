@@ -737,6 +737,18 @@
                 
                 <div class="metric-card loading-metrics">
                     <div class="metric-label">
+                        <span class="metric-emoji">⚖️</span>
+                        SP Rejection Appeals
+                    </div>
+                    <div class="metric-value" id="spRejectionAppeals">---</div>
+                    <div class="metric-change" id="spRejectionAppealsChange">
+                        <span class="change-indicator">---</span>
+                        <span class="change-text">vs prev period</span>
+                    </div>
+                </div>
+                
+                <div class="metric-card loading-metrics">
+                    <div class="metric-label">
                         <span class="metric-emoji">📅</span>
                         Avg Appeals per Day
                     </div>
@@ -882,9 +894,11 @@
         const dashboardData = document.getElementById('dashboardData');
         const metricsGrid = document.getElementById('metricsGrid');
         const totalAppeals = document.getElementById('totalAppeals');
+        const spRejectionAppeals = document.getElementById('spRejectionAppeals');
         const avgAppealsPerDay = document.getElementById('avgAppealsPerDay');
         const llmAcceptanceRate = document.getElementById('llmAcceptanceRate');
         const totalAppealsChange = document.getElementById('totalAppealsChange');
+        const spRejectionAppealsChange = document.getElementById('spRejectionAppealsChange');
         const avgAppealsChange = document.getElementById('avgAppealsChange');
         const llmAcceptanceChange = document.getElementById('llmAcceptanceChange');
         const chartSection = document.getElementById('chartSection');
@@ -917,11 +931,13 @@
             element.classList.remove('hidden');
         }
 
-        function updateMetrics(data, days, terminationCountsData = []) {
+        function updateMetrics(data, days, terminationCountsData = [], spAppealsData = []) {
             console.log('Updating metrics with data:', data?.length, 'records, days:', days);
+            console.log('SP appeals data:', spAppealsData?.length, 'records');
             
             if (!data || data.length === 0) {
                 totalAppeals.textContent = '0';
+                spRejectionAppeals.textContent = '0';
                 avgAppealsPerDay.innerHTML = '0<span class="metric-unit">per day</span>';
                 llmAcceptanceRate.textContent = '0%';
                 return;
@@ -931,6 +947,11 @@
             const total = data.length;
             totalAppeals.textContent = total.toLocaleString();
             console.log('Total appeals:', total);
+
+            // Calculate SP rejection appeals
+            const spTotal = spAppealsData ? spAppealsData.length : 0;
+            spRejectionAppeals.textContent = spTotal.toLocaleString();
+            console.log('SP rejection appeals:', spTotal);
 
             // Calculate average appeals per day
             const avgPerDay = Math.round(total / days);
@@ -2460,7 +2481,7 @@
                 }
                 
                 // Update metrics
-                updateMetrics(currentData, days, terminationCountsData);
+                updateMetrics(currentData, days, terminationCountsData, spAppealsData);
                 
                 // Create SP appeals chart
                 createSPAppealTrendsChart(spAppealsData, days);

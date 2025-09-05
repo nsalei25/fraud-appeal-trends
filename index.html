@@ -2180,7 +2180,7 @@
 
             // Update change indicators
             updateChangeIndicator(totalAppealsChange, totalChange);
-            updateChangeIndicator(avgAppealsChange, avgChange);
+            updateChangeIndicator(avgAppealsChange, null); // Don't show percentage change for average
             updateChangeIndicator(llmAcceptanceChange, acceptanceChange, true); // true for percentage points
         }
 

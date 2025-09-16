@@ -2326,7 +2326,7 @@
                         AND DATE(ta.longboat_extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
 
                     WHERE DATE(t.appealed_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)
-                        AND (t.termination_reason_category = 'fraud')
+                        AND (t.termination_reason_category = 'fraud' OR t.rule_name = 'Generic :: Recurring Charge Fraud')
                         AND t.was_appealed = true
 
                     -- Get only the most recent assessment per shop

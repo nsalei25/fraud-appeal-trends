@@ -2377,7 +2377,6 @@
                         COUNT(*) as total_terminations
                     FROM \`shopify-dw.mart_cti_data.shop_terminations__wide\` t
                     WHERE DATE(t.terminated_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)
-                        AND (t.termination_reason_category = 'fraud')
                         AND t.rule_name IS NOT NULL
                         AND t.rule_name != ''
                     GROUP BY t.rule_name

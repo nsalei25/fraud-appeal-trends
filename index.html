@@ -201,6 +201,27 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
+        .charts-row {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-section-half {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            flex: 1;
+        }
+
+        @media (max-width: 1200px) {
+            .charts-row {
+                flex-direction: column;
+            }
+        }
+
         .chart-title {
             font-size: 1.5rem;
             font-weight: 700;
@@ -773,23 +794,25 @@
             </div>
         </div>
 
-        <div class="chart-section" id="chartSection" style="display: none;">
-            <h2 class="chart-title">Shop Termination Appeals</h2>
-            <div class="chart-container">
-                <canvas id="appealTrendsChart"></canvas>
+        <div class="charts-row" id="chartsRow" style="display: none;">
+            <div class="chart-section-half" id="chartSection">
+                <h2 class="chart-title">Shop Termination Appeals</h2>
+                <div class="chart-container">
+                    <canvas id="appealTrendsChart"></canvas>
+                </div>
             </div>
-        </div>
 
-        <div class="chart-section" id="spAppealTrendsSection" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h2 class="chart-title">SP Rejection Appeals</h2>
-                <button id="viewSPAppealsBtn" class="auth-button" style="margin: 0;">
-                    View All SP Appeals
-                </button>
-            </div>
-            <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Daily count of appeals following Shopify Payments rejections, split by latest report type</p>
-            <div class="chart-container">
-                <canvas id="spAppealTrendsChart"></canvas>
+            <div class="chart-section-half" id="spAppealTrendsSection">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 class="chart-title">SP Rejection Appeals</h2>
+                    <button id="viewSPAppealsBtn" class="auth-button" style="margin: 0;">
+                        View All SP Appeals
+                    </button>
+                </div>
+                <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Daily count of appeals following Shopify Payments rejections, split by latest report type</p>
+                <div class="chart-container">
+                    <canvas id="spAppealTrendsChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -901,6 +924,7 @@
         const spRejectionAppealsChange = document.getElementById('spRejectionAppealsChange');
         const avgAppealsChange = document.getElementById('avgAppealsChange');
         const llmAcceptanceChange = document.getElementById('llmAcceptanceChange');
+        const chartsRow = document.getElementById('chartsRow');
         const chartSection = document.getElementById('chartSection');
         const llmChartSection = document.getElementById('llmChartSection');
         const rulesSection = document.getElementById('rulesSection');
@@ -1007,8 +1031,8 @@
             console.log('Creating chart with', data.length, 'records for', days, 'days');
             console.log('First 3 data records:', JSON.stringify(data.slice(0, 3), null, 2));
 
-            // Show chart section
-            chartSection.style.display = 'block';
+            // Show charts row (contains both termination and SP appeals)
+            chartsRow.style.display = 'block';
 
             // Process data by date and operation type - use direct aggregation approach
             const dateData = {};
@@ -1685,8 +1709,7 @@
             spAppealTicketIds = data.map(row => row.trust_platform_ticket_id).filter(id => id);
             console.log('Stored', spAppealTicketIds.length, 'SP appeal ticket IDs');
             
-            // Show SP appeals section
-            spAppealTrendsSection.style.display = 'block';
+            // SP appeals section is now shown as part of chartsRow
             
             // Process data by appeal date and latest report type
             const spDateData = {};

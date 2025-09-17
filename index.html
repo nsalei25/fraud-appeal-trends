@@ -819,16 +819,25 @@
             </div>
         </div>
 
-        <div class="chart-section" id="llmChartSection" style="display: none;">
-            <div class="llm-chart-header">
-                <h2 class="chart-title">LLM Feedback Trends Over Time</h2>
-                <div class="llm-action-buttons">
-                    <button id="viewAcceptedBtn" class="llm-action-btn llm-accepted-btn">View Accepted Appeals</button>
-                    <button id="viewRejectedBtn" class="llm-action-btn llm-rejected-btn">View Rejected Appeals</button>
+        <div class="charts-row" id="secondChartsRow" style="display: none;">
+            <div class="chart-section-half" id="llmChartSection">
+                <div class="llm-chart-header">
+                    <h2 class="chart-title">LLM Feedback Trends Over Time</h2>
+                    <div class="llm-action-buttons">
+                        <button id="viewAcceptedBtn" class="llm-action-btn llm-accepted-btn">View Accepted Appeals</button>
+                        <button id="viewRejectedBtn" class="llm-action-btn llm-rejected-btn">View Rejected Appeals</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="llmFeedbackChart"></canvas>
                 </div>
             </div>
-            <div class="chart-container">
-                <canvas id="llmFeedbackChart"></canvas>
+
+            <div class="chart-section-half" id="countryTrendsSection">
+                <h2 class="chart-title">Shop Termination Appeals by Country (5+ Daily Average)</h2>
+                <div class="chart-container">
+                    <canvas id="countryTrendsChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -886,13 +895,6 @@
             </div>
         </div>
 
-        <div class="chart-section" id="countryTrendsSection" style="display: none;">
-            <h2 class="chart-title">Shop Termination Appeals by Country (5+ Daily Average)</h2>
-            <div class="chart-container">
-                <canvas id="countryTrendsChart"></canvas>
-            </div>
-        </div>
-
         <div class="dashboard-content">
             <div id="authStatus" class="status hidden"></div>
             
@@ -928,6 +930,7 @@
         const avgAppealsChange = document.getElementById('avgAppealsChange');
         const llmAcceptanceChange = document.getElementById('llmAcceptanceChange');
         const chartsRow = document.getElementById('chartsRow');
+        const secondChartsRow = document.getElementById('secondChartsRow');
         const chartSection = document.getElementById('chartSection');
         const llmChartSection = document.getElementById('llmChartSection');
         const rulesSection = document.getElementById('rulesSection');
@@ -1241,8 +1244,8 @@
 
             console.log('Creating LLM feedback chart with', data.length, 'records');
             
-            // Show LLM chart section
-            llmChartSection.style.display = 'block';
+            // Show second charts row (contains both LLM and country charts)
+            secondChartsRow.style.display = 'block';
             
             // Filter data to only include records with LLM decisions for accepted/rejected counts
             const llmData = data.filter(row => row.llm_decision && row.llm_decision.trim() !== '');
@@ -1472,8 +1475,7 @@
 
             console.log('Creating country trends chart with', data.length, 'records');
             
-            // Show country trends section
-            countryTrendsSection.style.display = 'block';
+            // Country trends section is now shown as part of secondChartsRow
             
             // Process data by date and country
             const countryDateData = {};
